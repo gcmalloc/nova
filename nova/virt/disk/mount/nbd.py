@@ -32,6 +32,9 @@ nbd_opts = [
                default=10,
                help='Amount of time, in seconds, to wait for NBD '
                'device start up.'),
+    cfg.BoolOpt('cache_nbd',
+               default=True,
+               help='If the nbd mouting should be done with caching'),
     ]
 
 CONF = cfg.CONF
@@ -80,11 +83,16 @@ class NbdMount(api.Mount):
         if not device:
             return False
 
+        if CONF.cache_nbd:
+            cache_flag = ['-n']
+        else:
+            cache_flag = []
+
         # NOTE(mikal): qemu-nbd will return an error if the device file is
         # already in use.
         LOG.debug('Get nbd device %(dev)s for %(imgfile)s',
                   {'dev': device, 'imgfile': self.image})
-        _out, err = utils.trycmd('qemu-nbd', '-c', device, self.image,
+        _out, err = utils.trycmd('qemu-nbd', *cache_flag, '-c', device, self.image,
                                  run_as_root=True)
         if err:
             self.error = _('qemu-nbd error: %s') % err
@@ -104,7 +112,7 @@ class NbdMount(api.Mount):
             LOG.info(_LI('NBD mount error: %s'), self.error)
 
             # Cleanup
-            _out, err = utils.trycmd('qemu-nbd', '-d', device,
+            _out, err = utils.trycmd('qemu-nbd', *cache_flag, '-d', device,
                                      run_as_root=True)
             if err:
                 LOG.warning(_LW('Detaching from erroneous nbd device returned '
